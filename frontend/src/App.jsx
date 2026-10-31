@@ -106,14 +106,14 @@ const EDIT_FIELDS = {
   ],
 };
 
-function AuthScreen() {
+function AuthScreen({ initialError = "" }) {
   const [mode, setMode] = useState("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(initialError);
 
   async function submit(event) {
     event.preventDefault();
@@ -215,18 +215,27 @@ function AuthScreen() {
 function App() {
   const [session, setSession] = useState(null);
   const [checkingSession, setCheckingSession] = useState(() => Boolean(supabase));
+  const [sessionError, setSessionError] = useState("");
 
   useEffect(() => {
     if (!supabase) return undefined;
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (active) {
-        setSession(data.session);
-        setCheckingSession(false);
-      }
-    });
+    supabase.auth.getSession()
+      .then(({ data }) => {
+        if (active) {
+          setSession(data.session);
+          setCheckingSession(false);
+        }
+      })
+      .catch((sessionLoadError) => {
+        if (active) {
+          setSessionError(sessionLoadError.message || "Unable to load your session. Please try again.");
+          setCheckingSession(false);
+        }
+      });
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
+      setSessionError("");
     });
     return () => {
       active = false;
@@ -238,12 +247,12 @@ function App() {
     return <main className="loading-screen">Loading your workspace…</main>;
   }
 
-  if (!session) return <AuthScreen />;
+  if (!session) return <AuthScreen initialError={sessionError} />;
 
-  return <Dashboard session={session} onSignOut={() => supabase.auth.signOut()} />;
+  return <Dashboard session={session} />;
 }
 
-function Dashboard({ session, onSignOut }) {
+function Dashboard({ session }) {
   const [activePage, setActivePage] = useState("overview");
   const [revision, setRevision] = useState(0);
   const [data, setData] = useState(null);
@@ -301,14 +310,24 @@ function Dashboard({ session, onSignOut }) {
 
   const currentNav = NAV_ITEMS.find((item) => item.id === activePage);
 
+  async function signOut() {
+    try {
+      const { error: signOutError } = await supabase.auth.signOut();
+      if (signOutError) throw signOutError;
+    } catch (signOutError) {
+      setError(signOutError.message || "Unable to sign out. Please try again.");
+    }
+  }
+
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand-lockup sidebar-brand">
+      <header className="app-header">
+        <div className="brand-lockup header-brand">
           <span className="brand-mark">S</span>
           <span>Subverse</span>
+          <span className="brand-divider" />
+          <span className="brand-context">Workspace</span>
         </div>
-        <p className="sidebar-label">WORKSPACE</p>
         <nav className="main-nav" aria-label="Main navigation">
           {NAV_ITEMS.map((item) => (
             <button
@@ -322,30 +341,30 @@ function Dashboard({ session, onSignOut }) {
             </button>
           ))}
         </nav>
-        <div className="sidebar-bottom">
-          <div className="user-chip">
+        <div className="header-actions">
+          <div className="connection-pill"><span /> Connected to Supabase Auth</div>
+          <div className="header-user" title={session.user.email}>
             <span className="avatar">{(session.user.email || "U").slice(0, 1).toUpperCase()}</span>
-            <span className="user-email">{session.user.email}</span>
+            <button className="signout-button" onClick={signOut} type="button">Sign out</button>
           </div>
-          <button className="signout-button" onClick={onSignOut} type="button">Sign out</button>
         </div>
-      </aside>
+      </header>
 
       <main className="main-content">
-        <header className="topbar">
+        <div className="topbar">
           <div>
-            <p className="eyebrow">SUBVERSE / WORKSPACE</p>
+            <p className="eyebrow">WORKSPACE OVERVIEW</p>
             <h1>{currentNav?.label || "Overview"}</h1>
           </div>
-          <div className="connection-pill"><span /> Connected to Supabase Auth</div>
-        </header>
+          <span className="page-date">Subscription management, made clear.</span>
+        </div>
 
         <section className="content-area">
           {error && <div className="notice error page-error">{error}</div>}
           {loading ? (
             <div className="loading-panel">Loading {currentNav?.label.toLowerCase()}…</div>
           ) : activePage === "overview" ? (
-            <Overview data={data} />
+            <Overview data={data} onNavigate={setActivePage} />
           ) : activePage === "invoices" ? (
             <InvoicePanel
               invoices={data || []}
@@ -372,63 +391,52 @@ function Dashboard({ session, onSignOut }) {
   );
 }
 
-function Overview({ data }) {
+function Overview({ data, onNavigate }) {
   const metrics = [
-    { label: "Customers", value: data?.customer_count ?? 0, hint: "In your workspace" },
-    { label: "Active subscriptions", value: data?.active_subscriptions ?? 0, hint: "Currently active" },
-    { label: "Open invoices", value: data?.open_invoice_count ?? 0, hint: "Awaiting payment" },
-    { label: "Monthly revenue", value: formatMoneyList(data?.monthly_revenue), hint: "Successful payments this month" },
+    { label: "Customers", value: data?.customer_count ?? 0, hint: "In your workspace", icon: "♙", tone: "violet" },
+    { label: "Active subscriptions", value: data?.active_subscriptions ?? 0, hint: "Currently active", icon: "↻", tone: "mint" },
+    { label: "Open invoices", value: data?.open_invoice_count ?? 0, hint: "Awaiting payment", icon: "▤", tone: "gold" },
+    { label: "Monthly revenue", value: formatMoneyList(data?.monthly_revenue), hint: "Successful payments this month", icon: "↗", tone: "rose" },
   ];
 
   return (
-    <div className="overview-grid">
+    <div className="dashboard-overview">
       <section className="welcome-panel">
-        <div>
-          <p className="eyebrow">YOUR BUSINESS AT A GLANCE</p>
-          <h2>Keep every subscription moving.</h2>
-          <p>Track customers, recurring plans, invoices, and payments from one place.</p>
+        <div className="welcome-copy">
+          <p className="eyebrow">YOUR BUSINESS, IN SYNC</p>
+          <h2>Everything recurring.<br />All in one place.</h2>
+          <p>Keep customers, plans, and payments moving with a clearer view of your business.</p>
+          <div className="welcome-actions">
+            <button type="button" className="hero-button" onClick={() => onNavigate("subscriptions")}>View subscriptions <span>↗</span></button>
+            <button type="button" className="hero-link" onClick={() => onNavigate("invoices")}>Explore invoices</button>
+          </div>
         </div>
-        <div className="welcome-decoration"><span>↗</span><i /><i /><i /></div>
+        <div className="hero-orbit" aria-hidden="true"><span className="orbit-core">S</span><i className="orbit-dot dot-one" /><i className="orbit-dot dot-two" /><i className="orbit-dot dot-three" /><span className="orbit-caption">SUBVERSE<br />BILLING HUB</span></div>
       </section>
       <div className="metric-grid">
         {metrics.map((metric) => (
-          <article className="metric-card" key={metric.label}>
-            <span className="metric-label">{metric.label}</span>
+          <article className={`metric-card metric-${metric.tone}`} key={metric.label}>
+            <div className="metric-topline"><span className="metric-label">{metric.label}</span><span className="metric-icon" aria-hidden="true">{metric.icon}</span></div>
             <strong>{metric.value}</strong>
-            <span className="metric-hint">{metric.hint}</span>
+            <span className="metric-hint"><i />{metric.hint}</span>
           </article>
         ))}
       </div>
-      <section className="insight-card">
-        <div>
-          <p className="eyebrow">RECURRING REVENUE</p>
-          <h3>Monthly recurring revenue</h3>
-        </div>
-        <div className="currency-summary">
-          {(data?.monthly_recurring_revenue || []).length ? (
-            data.monthly_recurring_revenue.map((entry) => (
-              <div className="currency-row" key={entry.currency}>
-                <span>{entry.currency}</span><strong>{formatMoney(entry.amount, entry.currency)}</strong>
-              </div>
-            ))
-          ) : <span className="muted">No active subscription revenue yet.</span>}
-        </div>
-      </section>
-      <section className="insight-card">
-        <div>
-          <p className="eyebrow">PAYMENT FOLLOW-UP</p>
-          <h3>Outstanding invoices</h3>
-        </div>
-        <div className="currency-summary">
-          {(data?.outstanding_invoices || []).length ? (
-            data.outstanding_invoices.map((entry) => (
-              <div className="currency-row" key={entry.currency}>
-                <span>{entry.currency}</span><strong>{formatMoney(entry.amount, entry.currency)}</strong>
-              </div>
-            ))
-          ) : <span className="muted">No open invoice balance.</span>}
-        </div>
-      </section>
+      <div className="insights-heading"><div><p className="eyebrow">THE BIGGER PICTURE</p><h2>Revenue &amp; collections</h2></div><span>Live workspace summary</span></div>
+      <div className="insights-grid">
+        <section className="insight-card revenue-insight">
+          <div className="insight-copy"><span className="insight-icon">↗</span><div><p className="eyebrow">RECURRING REVENUE</p><h3>Monthly recurring revenue</h3><p className="insight-description">From active subscriptions</p></div></div>
+          <div className="currency-summary">
+            {(data?.monthly_recurring_revenue || []).length ? data.monthly_recurring_revenue.map((entry) => <div className="currency-row" key={entry.currency}><span>{entry.currency}</span><strong>{formatMoney(entry.amount, entry.currency)}</strong></div>) : <span className="muted">No active subscription revenue yet.</span>}
+          </div>
+        </section>
+        <section className="insight-card collection-insight">
+          <div className="insight-copy"><span className="insight-icon">▤</span><div><p className="eyebrow">PAYMENT FOLLOW-UP</p><h3>Outstanding invoices</h3><p className="insight-description">Still waiting to be collected</p></div></div>
+          <div className="currency-summary">
+            {(data?.outstanding_invoices || []).length ? data.outstanding_invoices.map((entry) => <div className="currency-row" key={entry.currency}><span>{entry.currency}</span><strong>{formatMoney(entry.amount, entry.currency)}</strong></div>) : <span className="muted">No open invoice balance.</span>}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
@@ -440,6 +448,7 @@ function ResourcePanel({ page, rows, lookups, session, onCreated, onError }) {
   const [notice, setNotice] = useState("");
   const [editingRow, setEditingRow] = useState(null);
   const [editForm, setEditForm] = useState({});
+  const [actionRowId, setActionRowId] = useState(null);
   const hasActions = ["customers", "products", "plans", "subscriptions", "discounts"].includes(page);
 
   function changeField(name, value) {
@@ -447,7 +456,9 @@ function ResourcePanel({ page, rows, lookups, session, onCreated, onError }) {
   }
 
   async function updateRow(row, changes) {
+    if (actionRowId) return;
     setBusy(true);
+    setActionRowId(row.id);
     onError("");
     try {
       await apiRequest(`${config.endpoint}/${row.id}`, session, {
@@ -460,6 +471,7 @@ function ResourcePanel({ page, rows, lookups, session, onCreated, onError }) {
       onError(updateError.message);
     } finally {
       setBusy(false);
+      setActionRowId(null);
     }
   }
 
@@ -492,7 +504,10 @@ function ResourcePanel({ page, rows, lookups, session, onCreated, onError }) {
   }
 
   async function cancelSubscription(row) {
+    if (actionRowId) return;
     if (!window.confirm("Cancel this subscription now? This ends it immediately.")) return;
+    setActionRowId(row.id);
+    setBusy(true);
     onError("");
     try {
       await apiRequest(`/api/subscriptions/${row.id}/cancel?at_period_end=false`, session, {
@@ -501,6 +516,9 @@ function ResourcePanel({ page, rows, lookups, session, onCreated, onError }) {
       await onCreated();
     } catch (cancelError) {
       onError(cancelError.message);
+    } finally {
+      setBusy(false);
+      setActionRowId(null);
     }
   }
 
@@ -580,12 +598,14 @@ function ResourcePanel({ page, rows, lookups, session, onCreated, onError }) {
                         <button className="text-button" type="button" onClick={() => startEditing(row)}>Edit</button>
                       )}
                       {["products", "plans", "discounts"].includes(page) && row.is_active !== undefined && (
-                        <button className="text-button" type="button" onClick={() => updateRow(row, { is_active: !row.is_active })}>
-                          {row.is_active ? "Deactivate" : "Activate"}
+                        <button className="text-button" type="button" disabled={actionRowId === row.id} onClick={() => updateRow(row, { is_active: !row.is_active })}>
+                          {actionRowId === row.id ? "Saving…" : row.is_active ? "Deactivate" : "Activate"}
                         </button>
                       )}
                       {page === "subscriptions" && row.status !== "canceled" && (
-                        <button className="text-button danger-link" type="button" onClick={() => cancelSubscription(row)}>Cancel now</button>
+                        <button className="text-button danger-link" type="button" disabled={actionRowId === row.id} onClick={() => cancelSubscription(row)}>
+                          {actionRowId === row.id ? "Canceling…" : "Cancel now"}
+                        </button>
                       )}
                     </td>
                   )}
@@ -652,7 +672,11 @@ function InvoicePanel({ invoices, lookups, session, onCreated, onError }) {
           provider_reference: payment.provider_reference || null,
         }),
       });
-      setNotice("Manual payment record added. No card was charged.");
+      setNotice(
+        payment.status === "succeeded"
+          ? "Payment recorded. No card was charged."
+          : `Payment marked ${payment.status}. No card was charged.`,
+      );
       setSelectedInvoice(null);
       await onCreated();
     } catch (paymentError) {
@@ -752,7 +776,7 @@ function FormField({ field, value, onChange, lookups }) {
       <label>{field.label}
         <select {...common}>
           <option value="">{options.length ? "Choose…" : "No records available"}</option>
-          {options.map((option) => <option key={option.id} value={option.id}>{lookupLabel(field.source, option)}</option>)}
+          {options.map((option) => <option key={option.id} value={option.id}>{lookupLabel(field.source, option, lookups)}</option>)}
         </select>
       </label>
     );
@@ -776,11 +800,15 @@ function initialForm(fields) {
   return Object.fromEntries(fields.map((field) => [field.name, field.defaultValue || ""]));
 }
 
-function lookupLabel(source, row) {
+function lookupLabel(source, row, lookups) {
   if (source === "customers") return row.name;
   if (source === "products") return row.name;
   if (source === "plans") return `${row.name} · ${formatMoney(row.amount, row.currency)}`;
-  if (source === "subscriptions") return `${String(row.id).slice(0, 8)} · ${row.status}`;
+  if (source === "subscriptions") {
+    const customer = lookups.customers?.find((item) => item.id === row.customer_id)?.name;
+    const plan = lookups.plans?.find((item) => item.id === row.plan_id)?.name;
+    return `${customer || "Customer"} · ${plan || "Plan"} · ${row.status}`;
+  }
   if (source === "discounts") return `${row.code} · ${row.discount_type} ${row.value}`;
   return String(row.id).slice(0, 8);
 }
