@@ -8,9 +8,15 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 def normalize_currency(value: str) -> str:
     normalized = value.strip().upper()
-    if len(normalized) != 3 or not normalized.isalpha():
+    if len(normalized) != 3 or not normalized.isascii() or not normalized.isalpha():
         raise ValueError("Currency must be a 3-letter code such as USD")
     return normalized
+
+
+def require_timezone(value: datetime | None) -> datetime | None:
+    if value is not None and value.utcoffset() is None:
+        raise ValueError("Timestamp must include a timezone, for example +00:00")
+    return value
 
 
 class ReadModel(BaseModel):
@@ -169,6 +175,11 @@ class DiscountCreate(BaseModel):
             raise ValueError("Discount code cannot be empty")
         return normalized
 
+    @field_validator("starts_at", "expires_at")
+    @classmethod
+    def validate_datetime_timezone(cls, value: datetime | None) -> datetime | None:
+        return require_timezone(value)
+
 
 class DiscountRead(DiscountCreate, ReadModel):
     id: UUID
@@ -180,6 +191,11 @@ class DiscountUpdate(BaseModel):
     is_active: bool | None = None
     starts_at: datetime | None = None
     expires_at: datetime | None = None
+
+    @field_validator("starts_at", "expires_at")
+    @classmethod
+    def validate_datetime_timezone(cls, value: datetime | None) -> datetime | None:
+        return require_timezone(value)
 
 
 class InvoiceItemCreate(BaseModel):
@@ -216,6 +232,11 @@ class InvoiceCreate(BaseModel):
     @classmethod
     def validate_currency(cls, value: str) -> str:
         return normalize_currency(value)
+
+    @field_validator("due_at")
+    @classmethod
+    def validate_due_at_timezone(cls, value: datetime | None) -> datetime | None:
+        return require_timezone(value)
 
 
 class InvoiceRead(ReadModel):

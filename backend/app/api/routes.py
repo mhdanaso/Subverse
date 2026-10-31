@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -80,6 +80,7 @@ def get_or_404(db: Session, model, record_id: uuid.UUID, label: str):
 def get_overview(db: Session = Depends(get_db)):
     now = datetime.now(timezone.utc)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    month_end = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1)
 
     customer_count = db.query(func.count(Customer.id)).scalar() or 0
     active_subscriptions = (
@@ -100,6 +101,7 @@ def get_overview(db: Session = Depends(get_db)):
         .filter(
             Payment.status == "succeeded",
             Payment.paid_at >= month_start,
+            Payment.paid_at < month_end,
         )
         .group_by(Payment.currency)
         .all()
@@ -130,7 +132,13 @@ def get_overview(db: Session = Depends(get_db)):
     mrr_rows = (
         db.query(Plan.currency, Plan.amount, Plan.billing_interval, Plan.interval_count)
         .join(Subscription, Subscription.plan_id == Plan.id)
-        .filter(Subscription.status == "active")
+        .filter(
+            Subscription.status == "active",
+            or_(
+                Subscription.current_period_end.is_(None),
+                Subscription.current_period_end >= now,
+            ),
+        )
         .all()
     )
     mrr_by_currency: dict[str, Decimal] = {}
@@ -256,7 +264,9 @@ def list_plans(
 
 @router.post("/plans", response_model=PlanRead, status_code=status.HTTP_201_CREATED)
 def create_plan(payload: PlanCreate, db: Session = Depends(get_db)):
-    get_or_404(db, Product, payload.product_id, "Product")
+    product = get_or_404(db, Product, payload.product_id, "Product")
+    if not product.is_active:
+        raise HTTPException(status_code=409, detail="An inactive product cannot have a new plan")
     plan = Plan(**payload.model_dump())
     db.add(plan)
     db.commit()
@@ -304,6 +314,9 @@ def create_subscription(payload: SubscriptionCreate, db: Session = Depends(get_d
     plan = get_or_404(db, Plan, payload.plan_id, "Plan")
     if not plan.is_active:
         raise HTTPException(status_code=409, detail="An inactive plan cannot be subscribed to")
+    product = get_or_404(db, Product, plan.product_id, "Product")
+    if not product.is_active:
+        raise HTTPException(status_code=409, detail="An inactive product cannot be subscribed to")
 
     start = datetime.now(timezone.utc)
     subscription = Subscription(
