@@ -11,10 +11,19 @@ export async function apiRequest(path, session, options = {}) {
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers,
+      signal: options.signal || AbortSignal.timeout(15_000),
+    });
+  } catch (error) {
+    if (error?.name === "TimeoutError" || error?.name === "AbortError") {
+      throw new Error("The API did not respond within 15 seconds. Check that the backend is running and its database connection is healthy.", { cause: error });
+    }
+    throw new Error(`Could not reach the API at ${API_URL}. Check that the backend is running and VITE_API_URL is correct.`, { cause: error });
+  }
   const result = response.status === 204 ? null : await response.json().catch(() => null);
 
   if (!response.ok) {
