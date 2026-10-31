@@ -111,6 +111,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .invoice-main span { color: #8d98a7; font-size: 0.7rem; }
 .invoice-amount { justify-items: end; }
 .invoice-amount strong { color: #26354a; font-size: 0.82rem; }
+.invoice-total { color: #8d98a7; font-size: 0.66rem; }
 .status-badge { display: inline-block; border-radius: 20px; padding: 4px 8px; background: #f0f2f5; color: #687486; font-size: 0.64rem; font-weight: 700; }
 .status-paid, .status-succeeded, .status-active { background: #e7f7ef; color: #27815f; }
 .status-open, .status-pending, .status-trialing { background: #fff5df; color: #99722b; }
