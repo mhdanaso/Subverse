@@ -7,11 +7,14 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+.pytest_cache/
 
 # Environment variables
 .env
 .env.*
 !.env.example
+backend/.env
+frontend/.env.local
 
 # Editors and operating systems
 .vscode/
