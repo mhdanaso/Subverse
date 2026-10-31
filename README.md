@@ -7,7 +7,7 @@ A full-stack recurring billing and subscription platform built with **React**, *
 - **Catalog & Plans:** Tiered pricing, billing cycles, and trial management.
 - **Subscription Lifecycle:** Sign-ups, upgrades, downgrades, pauses, and renewals.
 - **Billing & Payments:** Automated invoicing, taxes, discounts, and payment tracking.
-- **Analytics:** MRR, ARR, churn rate, and revenue reporting.
+- **Analytics:** MRR, ARR, churn rate, and revenue reporting about the data.
 
 ## Tech Stack
 - **Frontend:** React, Vite
