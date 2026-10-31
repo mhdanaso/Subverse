@@ -5,7 +5,8 @@ Subverse is a subscription-management MVP built with React + Vite, FastAPI, and 
 ## MVP features
 
 - Supabase Auth sign-up, sign-in, session restore, and sign-out
-- Customer, product, plan, subscription, discount, invoice, and payment records
+- Create, view, and update customers, products, plans, and discounts
+- Create and view subscriptions, invoices, and manual payment records
 - Invoice line totals, discounts, tax amounts, and payment status tracking
 - Overview for customers, active subscriptions, monthly payments, MRR, and open invoices
 - Protected FastAPI API; the browser does not read or write billing tables directly
@@ -74,12 +75,12 @@ Open the local Vite URL (normally `http://localhost:5173`). If `.env.local` chan
 All `/api/*` routes require `Authorization: Bearer <Supabase access token>`. FastAPI verifies the token against Supabase Auth and checks that the user’s email is in `ALLOWED_USER_EMAILS`.
 
 - `GET /api/overview`
-- `GET|POST /api/customers`
-- `GET|POST /api/products`
-- `GET|POST /api/plans`
+- `GET|POST /api/customers`; `PATCH /api/customers/{id}`
+- `GET|POST /api/products`; `PATCH /api/products/{id}`
+- `GET|POST /api/plans`; `PATCH /api/plans/{id}`
 - `GET|POST /api/subscriptions`
 - `POST /api/subscriptions/{id}/cancel`
-- `GET|POST /api/discounts`
+- `GET|POST /api/discounts`; `PATCH /api/discounts/{id}`
 - `GET|POST /api/invoices`
 - `GET|POST /api/invoices/{id}/payments`
 
