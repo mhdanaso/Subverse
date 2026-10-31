@@ -2,6 +2,11 @@
 
 A full-stack recurring billing and subscription platform built with **React**, **FastAPI**, and **PostgreSQL**.
 
+## Project Overview
+
+Subverse is a subscription management platform designed to simplify recurring billing, subscription tracking, and revenue management. It provides an intuitive interface for managing users, subscription plans, payments, and analytics while ensuring efficient and reliable subscription operations.
+
+
 ## Core Modules
 - **Auth & Users:** JWT authentication and role-based access control.
 - **Catalog & Plans:** Tiered pricing, billing cycles, and trial management.
